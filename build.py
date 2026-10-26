@@ -36,7 +36,7 @@ def page(title, sections, lead=""):
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)} · 3Dit</title><link rel="stylesheet" href="style.css"><link rel="icon" href="icon.png"></head>
 <body><main>
-<header><img src="icon.png" alt=""><a href="./">3Dit</a><nav><a href="privacy.html">Privacy</a><a href="support.html">Support</a></nav></header>
+<header><img src="icon.png" alt=""><a href="./">3Dit</a><nav><a href="viewer.html">Room viewer</a><a href="privacy.html">Privacy</a><a href="support.html">Support</a></nav></header>
 <h1>{html.escape(title)}</h1><p class="updated">Updated {UPDATED}</p>
 {lead_html}
 {secs}

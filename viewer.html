@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room Viewer · 3Dit</title>
+<link rel="icon" href="icon.png">
+<style>
+  :root { --ink: #16181d; --muted: #5b616e; --line: #e3e5ea; --accent: #2f6bff; --bg: #f6f7f9; --card: #ffffff; --view: #e9ebef; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #eef0f3; --muted: #a3a9b5; --line: #2c3038; --accent: #6b97ff; --bg: #15171b; --card: #1d2026; --view: #111316; } }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; }
+  .app { display: grid; grid-template-columns: 1fr 340px; grid-template-rows: auto 1fr; height: 100%; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+  header img { width: 32px; height: 32px; border-radius: 8px; }
+  header .brand { font-weight: 700; font-size: 17px; color: inherit; text-decoration: none; }
+  header .name { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  header .spacer { flex: 1; }
+  button, .btn { font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; padding: 7px 14px; cursor: pointer; white-space: nowrap; }
+  button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #stage { position: relative; background: var(--view); min-height: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .tools { position: absolute; left: 12px; top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .tools button { background: color-mix(in srgb, var(--card) 88%, transparent); backdrop-filter: blur(8px); }
+  #drop { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px; }
+  #drop h1 { font-size: 26px; margin: 0; }
+  #drop p { color: var(--muted); margin: 0; max-width: 420px; }
+  #drop.over { outline: 3px dashed var(--accent); outline-offset: -14px; }
+  #drop .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  aside { border-left: 1px solid var(--line); background: var(--card); overflow-y: auto; padding: 16px; }
+  aside h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+  aside h2:first-child { margin-top: 0; }
+  .dims { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .dims div { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+  .dims b { display: block; font-size: 18px; }
+  .dims span { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 5px 0; border-bottom: 1px solid var(--line); }
+  td:last-child { text-align: right; color: var(--muted); }
+  .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 1px solid var(--line); }
+  .group summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+  .item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 14px; cursor: pointer; }
+  .item input { margin: 0; }
+  .item.sel { color: var(--accent); font-weight: 600; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 14px; }
+  .empty { color: var(--muted); font-size: 14px; }
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+    header .name { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <img src="icon.png" alt=""><a class="brand" href="./">3Dit</a>
+    <span class="name" id="name">Room viewer</span>
+    <span class="spacer"></span>
+    <label class="btn primary" for="file">Open .glb</label>
+    <input id="file" type="file" accept=".glb,.gltf,model/gltf-binary" hidden>
+  </header>
+  <div id="stage">
+    <div class="tools" id="tools" hidden>
+      <button id="reset">Reset view</button>
+      <button id="top">Top view</button>
+      <button id="ceiling" class="on">Hide ceiling</button>
+      <button id="units">Feet</button>
+    </div>
+    <div id="drop">
+      <h1>Open a room from 3Dit</h1>
+      <p>Drop a .glb file here, or open one. It stays on your device; nothing is uploaded.</p>
+      <div class="row">
+        <label class="btn primary" for="file">Open .glb</label>
+        <a class="btn" href="?src=examples/sanctuary-panels.glb">See an example sanctuary</a>
+      </div>
+    </div>
+  </div>
+  <aside id="side">
+    <h2>Room</h2>
+    <div class="empty" id="roomEmpty">Open a room to see its size.</div>
+    <div class="dims" id="dims" hidden></div>
+    <h2>Acoustic panels</h2>
+    <div id="panels" class="empty">None in this room.</div>
+    <h2>In the room</h2>
+    <div id="objects" class="empty">Nothing yet.</div>
+    <p class="note">Tap an object to find it. Uncheck to hide it. Rooms come from the 3Dit iPhone app; sizes are as scanned.</p>
+  </aside>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 2000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(5, 12, 7); scene.add(sun);
+const grid = new THREE.GridHelper(200, 200, 0x888888, 0x888888);
+grid.material.opacity = 0.18; grid.material.transparent = true; scene.add(grid);
+
+let room = null, box = null, feet = true, selected = null;
+const outline = new THREE.Box3Helper(new THREE.Box3(), 0x2f6bff); outline.visible = false; scene.add(outline);
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+(function loop() { requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); })();
+
+const fmt = (m) => {
+  if (!feet) return (m).toFixed(2) + ' m';
+  const inches = Math.round(m / 0.0254), f = Math.floor(inches / 12), i = inches % 12;
+  return i ? `${f}′ ${i}″` : `${f}′`;
+};
+const ft = (m) => Math.round(m / 0.3048);
+
+function frame(top = false) {
+  if (!box) return;
+  const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  const r = Math.max(size.x, size.z) * 0.9 + size.y;
+  controls.target.copy(c);
+  camera.position.copy(top ? c.clone().add(new THREE.Vector3(0.001, r * 1.4, 0)) : c.clone().add(new THREE.Vector3(r * 0.75, r * 0.9, r * 0.95)));
+  camera.near = r / 200; camera.far = r * 50; camera.updateProjectionMatrix();
+  controls.update();
+}
+
+// objects that came in as one named thing: top-level nodes of the file
+function things(root) {
+  // a file wrapped in one unnamed node: look inside it
+  let top = root.children;
+  while (top.length === 1 && top[0].children.length > 1 && !top[0].isMesh) top = top[0].children;
+  return top.filter(o => o.name);
+}
+const kindOf = (name) => /^panel/i.test(name) ? 'Panels' : /^(wall|new wall)/i.test(name) ? 'Walls'
+  : /^(window|door)/i.test(name) ? 'Windows & doors' : /^(floor|ceiling|stage)/i.test(name) ? 'Floor & ceiling' : 'Items';
+
+function colorName(c) {
+  const l = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, sat = Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
+  if (sat < 0.08) return l < 0.05 ? 'Black' : l > 0.6 ? 'White' : 'Gray';
+  return '#' + c.getHexString();
+}
+
+function summarise(objs) {
+  // inside size: the floor's extent, floor to ceiling (else the walls, else everything)
+  const floor = objs.find(o => /^floor/i.test(o.name)), ceiling = objs.find(o => /^ceiling/i.test(o.name));
+  const shell = floor ? [floor] : objs.filter(o => /^wall/i.test(o.name));
+  const b = new THREE.Box3(); (shell.length ? shell : objs).forEach(o => b.expandByObject(o));
+  const s = b.getSize(new THREE.Vector3());
+  const walls = new THREE.Box3(); objs.filter(o => /^wall/i.test(o.name)).forEach(o => walls.expandByObject(o));
+  if (floor) s.y = ceiling ? new THREE.Box3().setFromObject(ceiling).min.y - b.max.y : (walls.isEmpty() ? s.y : walls.max.y - b.max.y);
+  const w = Math.min(s.x, s.z), l = Math.max(s.x, s.z);
+  document.getElementById('roomEmpty').hidden = true;
+  const dims = document.getElementById('dims'); dims.hidden = false;
+  dims.innerHTML = `<div><b>${fmt(w)}</b><span>wide</span></div><div><b>${fmt(l)}</b><span>long</span></div><div><b>${fmt(s.y)}</b><span>high</span></div>`;
+  // panels: size from their two largest sides, colour from their face
+  const rows = {}; let area = 0;
+  for (const o of objs.filter(o => kindOf(o.name) === 'Panels')) {
+    const ps = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+    const sides = [ps.x, ps.y, ps.z].sort((a, b) => b - a);
+    let mat = null; o.traverse(m => { if (m.isMesh && !mat) mat = Array.isArray(m.material) ? m.material[0] : m.material; });
+    const color = mat?.color ? colorName(mat.color) : 'Gray';
+    const key = feet ? `${ft(sides[1])}×${ft(sides[0])} ft` : `${sides[1].toFixed(2)}×${sides[0].toFixed(2)} m`;
+    rows[key + '|' + color] = (rows[key + '|' + color] || 0) + 1;
+    area += sides[0] * sides[1];
+  }
+  const pe = document.getElementById('panels');
+  const keys = Object.keys(rows).sort();
+  if (!keys.length) { pe.className = 'empty'; pe.textContent = 'None in this room.'; }
+  else {
+    pe.className = '';
+    const sw = c => c.startsWith('#') ? c : { Black: '#111', Gray: '#888', White: '#f4f4f4' }[c];
+    pe.innerHTML = '<table>' + keys.map(k => { const [size, color] = k.split('|');
+      return `<tr><td><span class="swatch" style="background:${sw(color)}"></span>${rows[k]} × ${size}</td><td>${color}</td></tr>`; }).join('')
+      + `<tr><td><b>${keys.reduce((n, k) => n + rows[k], 0)} panels</b></td><td>${feet ? Math.round(area / 0.0929) + ' sq ft' : area.toFixed(1) + ' m²'}</td></tr></table>`;
+  }
+}
+
+function list(objs) {
+  const groups = {};
+  objs.forEach(o => (groups[kindOf(o.name)] ||= []).push(o));
+  const order = ['Walls', 'Windows & doors', 'Floor & ceiling', 'Items', 'Panels'];
+  const el = document.getElementById('objects'); el.className = ''; el.innerHTML = '';
+  for (const g of order) {
+    if (!groups[g]) continue;
+    const d = document.createElement('details'); d.className = 'group'; d.open = g !== 'Walls';
+    d.innerHTML = `<summary>${g} <span style="color:var(--muted);font-weight:400">(${groups[g].length})</span></summary>`;
+    for (const o of groups[g]) {
+      const row = document.createElement('label'); row.className = 'item';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = o.visible;
+      cb.onchange = () => { o.visible = cb.checked; };
+      const t = document.createElement('span'); t.textContent = o.name.replace(/_/g, ' ');
+      t.onclick = (e) => { e.preventDefault(); pick(o, row); };
+      row.append(cb, t); d.append(row);
+    }
+    el.append(d);
+  }
+}
+
+function pick(o, row) {
+  document.querySelectorAll('.item.sel').forEach(r => r.classList.remove('sel'));
+  if (selected === o) { selected = null; outline.visible = false; return; }
+  selected = o; row?.classList.add('sel');
+  outline.box.setFromObject(o); outline.visible = true;
+  controls.target.copy(outline.box.getCenter(new THREE.Vector3()));
+}
+
+function show(gltf, label) {
+  if (room) scene.remove(room);
+  room = gltf.scene; scene.add(room);
+  box = new THREE.Box3().setFromObject(room);
+  grid.position.y = box.min.y - 0.002;
+  document.getElementById('drop').hidden = true;
+  document.getElementById('tools').hidden = false;
+  document.getElementById('name').textContent = label;
+  const objs = things(room);
+  room.userData.objs = objs;
+  setCeiling(true);
+  summarise(objs); list(objs); frame();
+}
+
+function setCeiling(hide) {
+  room?.traverse(o => { if (/^ceiling/i.test(o.name)) o.visible = !hide; });
+  document.getElementById('ceiling').classList.toggle('on', hide);
+}
+
+const loader = new GLTFLoader();
+function opening() { document.querySelector('#drop h1').textContent = 'Opening the room…'; document.querySelector('#drop .row').hidden = true; }
+function loadURL(url, label) {
+  opening();
+  loader.load(url, g => show(g, label), undefined, e => alert('Couldn\'t open that file: ' + e.message));
+}
+function loadFile(f) {
+  opening();
+  f.arrayBuffer().then(buf => loader.parse(buf, '', g => show(g, f.name.replace(/\.glb$/i, '')), e => alert('That isn\'t a GLB room: ' + e.message)));
+}
+document.getElementById('file').onchange = e => e.target.files[0] && loadFile(e.target.files[0]);
+const drop = document.getElementById('drop');
+stage.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+stage.addEventListener('dragleave', () => drop.classList.remove('over'));
+stage.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.getElementById('reset').onclick = () => frame(false);
+document.getElementById('top').onclick = () => frame(true);
+document.getElementById('ceiling').onclick = () => setCeiling(!document.getElementById('ceiling').classList.contains('on'));
+document.getElementById('units').onclick = (e) => {
+  feet = !feet; e.target.textContent = feet ? 'Feet' : 'Meters';
+  if (room) summarise(room.userData.objs);
+};
+const src = new URLSearchParams(location.search).get('src');
+if (src && /^[\w\-./]+\.glb$/.test(src) && !src.includes('..')) loadURL(src, src.split('/').pop().replace(/\.glb$/, '').replace(/-/g, ' '));
+</script>
+</body>
+</html>
